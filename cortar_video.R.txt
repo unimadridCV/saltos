@@ -1,0 +1,85 @@
+# install.packages(c("StereoMorph", "purrr", "dplyr"))
+library(StereoMorph)
+library(purrr)
+
+ruta_principal <- "datos_saltos"
+
+subdirectorios_nivel1 <- c("train", "test")
+
+subdirectorios_nivel2 <- c("suelo", "aire")
+
+carpetas_a_crear <- c()
+
+for(n1 in subdirectorios_nivel1){
+for(n2 in subdirectorios_nivel2) {
+  ruta_completa <- file.path(ruta_principal, n1, n2)
+  carpetas_a_crear <- c(carpetas_a_crear, ruta_completa)
+}
+
+}
+
+purrr::walk(carpetas_a_crear, dir.create, recursive = TRUE)
+
+video_a_cortar <- "salto_corto.mp4"
+
+StereoMorph::extractFrames(file = video_a_cortar, ext = "jpg", save.to = ruta_principal)
+##av_video_images(video = video_a_cortar, 
+ #               destdir = ruta_principal, format = "jpg", fps = NULL)
+
+suelo <- c(1:74, 89:99, 113:123, 136:147, 161:172, 186:197, 211:223,
+           237:248, 262:274, 288:297, 318:327, 346:354, 374:383,
+            401:412, 428:437, 453:465, 478:586) 
+
+aire <- setdiff(1:586, suelo)
+
+data_suelo <- tibble::tibble(numero = suelo, etiqueta = "suelo")
+data_aire <- tibble::tibble(numero = aire, etiqueta = "aire")
+juntos <- dplyr::bind_rows(data_suelo, data_aire)
+
+# Para poder reproducir los mismos resultados en cualquier máquina
+
+set.seed(123)
+proporcion_entrenamiento <- 0.8
+
+
+
+# Junta los datos 
+
+data_suelo <- tibble::tibble(numero = suelo, etiqueta = "suelo")
+data_aire <- tibble::tibble(numero = aire, etiqueta = "aire")
+juntos <- dplyr::bind_rows(data_suelo, data_aire)
+
+# Para reproducibilidad
+set.seed(123)
+
+# Revuelve los datos
+n_total <- nrow(juntos)
+indices_aleatorios <- sample(n_total)
+juntos <- juntos[indices_aleatorios,]
+
+# Cantidad de cada uno de los sets
+n_entrenamiento <- floor(proporcion_entrenamiento * n_total)
+n_test <- n_total - n_entrenamiento
+
+entrenamiento <- juntos[1:n_entrenamiento, ]
+test <- juntos[(n_entrenamiento + 1):n_total, ]
+
+mover_archivo <- function(numero, etiqueta, tipo) {
+  origen <- paste0(ruta_principal, sprintf("/%06d.jpg", numero))
+  destino <- paste0(ruta_principal, "/", tipo, "/", etiqueta , sprintf("/%06d.jpg", numero))
+  file.rename(from = origen, to = destino)
+}
+
+
+# Mueve las imágenes a las carpetas correspondientes
+purrr::pwalk(entrenamiento, ~mover_archivo(.x, .y, tipo = "train"))
+purrr::pwalk(test, ~mover_archivo(.x, .y, tipo = "test"))
+
+purrr::walk(test$numero, ~ file.rename(from = paste0(ruta_principal, sprintf("/%06d.jpg", .x)), 
+                                                 to = paste0(ruta_principal, sprintf("/images/test/%06d.jpg", .x))))
+
+
+
+
+
+
